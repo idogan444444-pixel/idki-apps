@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stoppuhr</title>
+<style>
+  :root{--bg:#0f0f10;--panel:#191a1d;--card:#202226;--text:#ececec;--muted:#aaacb2;
+    --accent:#d97757;--accent2:#e08a6c;--line:#2b2d31;--ok:#5fb878}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+  .card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);
+    border-radius:20px;padding:30px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  h1{font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:22px;letter-spacing:-.02em}
+  .time{font-size:3.6rem;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-bottom:6px}
+  .time .ms{font-size:1.8rem;color:var(--muted)}
+  .ctrls{display:flex;gap:12px;justify-content:center;margin:22px 0 10px}
+  button{cursor:pointer;font:inherit;font-weight:700;border:none;border-radius:12px;padding:14px 26px;min-height:48px;transition:transform .08s,filter .15s,background .15s}
+  button:active{transform:translateY(1px)}
+  .start{background:var(--ok);color:#06240f}.pause{background:var(--accent);color:#1a1a1a}
+  .lap,.reset{background:var(--card);color:var(--text);border:1px solid var(--line)}
+  .lap:hover,.reset:hover{background:#2b2d31}.start:hover,.pause:hover{filter:brightness(1.1)}
+  button:disabled{opacity:.4;cursor:default}
+  ul{list-style:none;margin-top:14px;max-height:230px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+  li{display:flex;justify-content:space-between;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;padding:10px 14px;font-variant-numeric:tabular-nums}
+  li .n{color:var(--muted)}li.best .d{color:var(--ok);font-weight:700}li.worst .d{color:var(--accent2);font-weight:700}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#d97757">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stoppuhr">
+</head>
+<body>
+<main class="card" role="application" aria-label="Stoppuhr">
+  <h1>Stoppuhr</h1>
+  <div class="time" id="time" aria-live="off">00:00<span class="ms">.00</span></div>
+  <div class="ctrls">
+    <button class="start" id="toggle">Start</button>
+    <button class="lap" id="lap" disabled>Runde</button>
+    <button class="reset" id="reset" disabled>Reset</button>
+  </div>
+  <ul id="laps"></ul>
+</main>
+<script>
+const timeEl=document.getElementById("time"),toggle=document.getElementById("toggle"),
+  lapBtn=document.getElementById("lap"),resetBtn=document.getElementById("reset"),lapsEl=document.getElementById("laps");
+let running=false,start=0,elapsed=0,raf=null,laps=[];
+function fmt(ms){const m=Math.floor(ms/60000),s=Math.floor(ms/1000)%60,cs=Math.floor(ms/10)%100;
+  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}<span class="ms">.${String(cs).padStart(2,"0")}</span>`;}
+function tick(){const now=performance.now();timeEl.innerHTML=fmt(elapsed+(now-start));raf=requestAnimationFrame(tick);}
+function go(){running=true;start=performance.now();toggle.textContent="Stopp";toggle.className="pause";
+  lapBtn.disabled=false;resetBtn.disabled=true;tick();}
+function stop(){running=false;elapsed+=performance.now()-start;cancelAnimationFrame(raf);
+  toggle.textContent="Weiter";toggle.className="start";resetBtn.disabled=false;}
+function reset(){running=false;cancelAnimationFrame(raf);elapsed=0;laps=[];timeEl.innerHTML=fmt(0);
+  toggle.textContent="Start";toggle.className="start";lapBtn.disabled=true;resetBtn.disabled=true;lapsEl.innerHTML="";}
+function addLap(){const total=elapsed+(running?performance.now()-start:0);
+  const prev=laps.length?laps[laps.length-1].total:0;laps.push({total,split:total-prev});render();}
+function render(){
+  if(!laps.length){lapsEl.innerHTML="";return;}
+  const splits=laps.map(l=>l.split),min=Math.min(...splits),max=Math.max(...splits);
+  lapsEl.innerHTML=laps.map((l,i)=>{const cls=laps.length>1?(l.split===min?"best":l.split===max?"worst":""):"";
+    return `<li class="${cls}"><span class="n">Runde ${i+1}</span><span class="d">${fmt(l.split).replace(/<[^>]+>/g,m=>m)}</span></li>`;}).reverse().join("");
+}
+toggle.addEventListener("click",()=>running?stop():go());
+lapBtn.addEventListener("click",()=>{if(running)addLap();});
+resetBtn.addEventListener("click",reset);
+window.addEventListener("keydown",e=>{if(e.key===" "){e.preventDefault();running?stop():go();}
+  else if(e.key.toLowerCase()==="l"&&running)addLap();});
+timeEl.innerHTML=fmt(0);
+</script>
+<script>if("serviceWorker"in navigator){addEventListener("load",function(){navigator.serviceWorker.register("service-worker.js").catch(function(){});});}</script>
+</body>
+</html>
